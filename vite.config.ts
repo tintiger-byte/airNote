@@ -14,12 +14,18 @@ export default defineConfig({
     port: 3000,
     open: true,
     proxy: {
-      // 개발 환경: CORS 우회 프록시
-      // /api/dust/* → https://apis.data.go.kr/B552584/UlfptcaAlarmInqireSvc/*
+      // 경보 API: /api/dust/* → UlfptcaAlarmInqireSvc/*
       '/api/dust': {
         target: 'https://apis.data.go.kr/B552584/UlfptcaAlarmInqireSvc',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/dust/, ''),
+        secure: true,
+      },
+      // CAI 실시간 API: /api/cai/* → RltmKhaiInfoSvc/*
+      '/api/cai': {
+        target: 'https://apis.data.go.kr/B552584/RltmKhaiInfoSvc',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/cai/, ''),
         secure: true,
       },
     },

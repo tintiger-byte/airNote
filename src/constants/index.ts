@@ -2,8 +2,12 @@ import { LevelMetaType, AlarmItem, DiaryEntry } from '../types';
 
 export const API = {
   KEY: '8e391968cfe3c7cf17fd2a34a31606b65f2b235c7a79b8642b3f3987f2e30f3d',
-  BASE: 'https://apis.data.go.kr/B552584/UlfptcaAlarmInqireSvc',
+  // 미세먼지 경보 발령 현황 API
+  ALARM_BASE: 'https://apis.data.go.kr/B552584/UlfptcaAlarmInqireSvc',
   ALARM_ENDPOINT: '/getUlfptcaAlarmInfo',
+  // 통합대기환경지수(CAI) 실시간 조회 API
+  CAI_BASE: 'https://apis.data.go.kr/B552584/RltmKhaiInfoSvc',
+  CAI_ENDPOINT: '/getMsrstnKhaiRltmDnsty',
 };
 
 export const MOCK_ALARMS: AlarmItem[] = [

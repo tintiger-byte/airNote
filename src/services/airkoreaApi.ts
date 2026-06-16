@@ -1,27 +1,95 @@
 import { API } from '../constants';
-import { AlarmItem } from '../types';
+import { AlarmItem, RealtimeDust, CaiRawItem, DustLevelType } from '../types';
 
 /**
- * 한국환경공단_에어코리아_미세먼지 경보 발령 현황 API
- *
- * Endpoint : https://apis.data.go.kr/B552584/UlfptcaAlarmInqireSvc/getUlfptcaAlarmInfo
- * 실제 응답 필드 (curl 확인):
- *   sn, districtName, moveName, itemCode, issueGbn,
- *   issueVal, issueDate, issueTime,
- *   clearVal, clearDate, clearTime,
- *   dataDate
- *
- * ※ 쿼리의 year/month 기준으로 해당 월 내 데이터를 반환.
- *    이번 달 데이터가 없으면 빈 배열 반환됨.
- *
- * CORS 우회:
- *   - 개발: vite.config.ts server.proxy (/api/dust → apis.data.go.kr/...)
- *   - 배포: vercel.json rewrites (/api/dust → apis.data.go.kr/...)
+ * CORS 우회 프록시 경로
+ *   개발: vite.config.ts server.proxy
+ *   배포: vercel.json rewrites
  */
+const ALARM_PROXY = '/api/dust';   // → UlfptcaAlarmInqireSvc
+const CAI_PROXY   = '/api/cai';    // → RltmKhaiInfoSvc
 
-const PROXY_PATH = '/api/dust';
+// ─── 유틸 ──────────────────────────────────────────────────────────────────
 
-/** 실제 API JSON item → AlarmItem 변환 */
+/** CAI 등급 숫자 → DustLevelType */
+function gradeToLevel(grade: string): DustLevelType {
+  switch (grade) {
+    case '1': return 'good';
+    case '2': return 'normal';
+    case '3': return 'bad';
+    case '4': return 'very_bad';
+    default:  return 'normal';
+  }
+}
+
+/** CAI 수치 → DustLevelType (등급 없을 때 fallback) */
+function caiToLevel(val: number): DustLevelType {
+  if (val <= 50)  return 'good';
+  if (val <= 100) return 'normal';
+  if (val <= 250) return 'bad';
+  return 'very_bad';
+}
+
+// ─── CAI 실시간 조회 ────────────────────────────────────────────────────────
+
+/**
+ * 통합대기환경지수(CAI) 실시간 조회
+ * 오퍼레이션: getMsrstnKhaiRltmDnsty
+ * @param stationName 측정소명 (지역 구 단위, 예: "강남구", "종로구")
+ */
+export async function fetchRealtimeDust(stationName: string): Promise<RealtimeDust | null> {
+  const params = new URLSearchParams({
+    serviceKey: API.KEY,
+    returnType: 'json',
+    numOfRows:  '1',
+    pageNo:     '1',
+    stationName,
+    dataTerm:   'DAILY',
+    ver:        '1.0',
+  });
+
+  const url = `${CAI_PROXY}${API.CAI_ENDPOINT}?${params.toString()}`;
+  console.info(`[AirNote] CAI API 요청 → 측정소: ${stationName}`);
+
+  try {
+    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const json = await res.json();
+    const header = json?.response?.header;
+    if (header?.resultCode !== '200' && header?.resultCode !== '00') {
+      throw new Error(`API [${header?.resultCode}]: ${header?.resultMsg}`);
+    }
+
+    const rawItems = json?.response?.body?.items?.item;
+    if (!rawItems) return null;
+
+    const arr: CaiRawItem[] = Array.isArray(rawItems) ? rawItems : [rawItems];
+    // 가장 최근 데이터 (첫 번째 항목)
+    const latest = arr[0];
+    if (!latest) return null;
+
+    const caiNum = parseInt(latest.caiValue, 10);
+    const isValid = !isNaN(caiNum);
+
+    return {
+      stationName: latest.stationName,
+      dataTime:    latest.dataTime,
+      caiValue:    isValid ? caiNum : 0,
+      level:       isValid
+        ? (latest.caiGrade ? gradeToLevel(latest.caiGrade) : caiToLevel(caiNum))
+        : 'normal',
+      mainPollutant: latest.caiItem || '-',
+      isMock: false,
+    };
+  } catch (err: any) {
+    console.warn('[AirNote] CAI API 실패:', err.message);
+    return null;
+  }
+}
+
+// ─── 경보 발령 현황 조회 ────────────────────────────────────────────────────
+
 function toAlarmItem(it: Record<string, any>): AlarmItem {
   return {
     sn:           String(it.sn          ?? ''),
@@ -39,11 +107,7 @@ function toAlarmItem(it: Record<string, any>): AlarmItem {
   };
 }
 
-/**
- * 이번 달 + 지난 달 데이터를 모두 조회해 합칩니다.
- * (이번 달에 아직 경보가 없을 수 있으므로 이전 달도 포함)
- */
-async function fetchMonth(year: string, month: string): Promise<AlarmItem[]> {
+async function fetchAlarmMonth(year: string, month: string): Promise<AlarmItem[]> {
   const params = new URLSearchParams({
     serviceKey: API.KEY,
     returnType: 'json',
@@ -53,18 +117,16 @@ async function fetchMonth(year: string, month: string): Promise<AlarmItem[]> {
     month,
   });
 
-  const url = `${PROXY_PATH}${API.ALARM_ENDPOINT}?${params.toString()}`;
-  console.info(`[AirNote] API 요청 → ${year}-${month}`);
+  const url = `${ALARM_PROXY}${API.ALARM_ENDPOINT}?${params.toString()}`;
+  console.info(`[AirNote] 경보 API 요청 → ${year}-${month}`);
 
   const res = await fetch(url, { headers: { Accept: 'application/json' } });
-
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
   const json = await res.json();
   const header = json?.response?.header;
-
   if (header?.resultCode !== '00') {
-    throw new Error(`API Error [${header?.resultCode}]: ${header?.resultMsg}`);
+    throw new Error(`API [${header?.resultCode}]: ${header?.resultMsg}`);
   }
 
   const rawItems = json?.response?.body?.items;
@@ -80,22 +142,20 @@ export async function fetchDustAlarms(): Promise<AlarmItem[] | null> {
     const year  = String(now.getFullYear());
     const month = String(now.getMonth() + 1).padStart(2, '0');
 
-    // 이번 달 데이터 조회
-    const thisMonth = await fetchMonth(year, month);
+    const thisMonth = await fetchAlarmMonth(year, month);
 
-    // 이번 달 데이터가 없으면 지난 달도 조회
-    let prevMonth: AlarmItem[] = [];
+    // 이번 달 데이터 없으면 지난 달 조회
     if (thisMonth.length === 0) {
       const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const pYear  = String(prevDate.getFullYear());
       const pMonth = String(prevDate.getMonth() + 1).padStart(2, '0');
-      prevMonth = await fetchMonth(pYear, pMonth);
+      const prevMonth = await fetchAlarmMonth(pYear, pMonth);
+      console.info(`[AirNote] 경보 데이터 ${prevMonth.length}건 (${pYear}-${pMonth})`);
+      return prevMonth;
     }
 
-    const combined = [...thisMonth, ...prevMonth];
-    console.info(`[AirNote] 경보 데이터 총 ${combined.length}건`);
-    return combined;
-
+    console.info(`[AirNote] 경보 데이터 ${thisMonth.length}건`);
+    return thisMonth;
   } catch (err: any) {
     console.warn('[AirNote] 경보 API 실패 → 목업 사용:', err.message);
     return null;

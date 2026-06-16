@@ -5,6 +5,10 @@
       "destination": "https://apis.data.go.kr/B552584/UlfptcaAlarmInqireSvc/:path*"
     },
     {
+      "source": "/api/cai/:path*",
+      "destination": "https://apis.data.go.kr/B552584/RltmKhaiInfoSvc/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
