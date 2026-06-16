@@ -21,6 +21,7 @@ export interface DiaryEntry {
 }
 
 export interface AlarmItem {
+  sn: string;
   districtName: string;
   moveName: string;
   itemCode: 'PM10' | 'PM25';
@@ -30,6 +31,8 @@ export interface AlarmItem {
   issueTime: string;
   clearDate: string | null;
   clearTime: string | null;
+  clearVal: string | null;   // 해제 시 농도
+  dataDate: string;          // 데이터 기준 날짜
 }
 
 export interface LevelMetaItem {

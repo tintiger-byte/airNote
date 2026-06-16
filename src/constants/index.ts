@@ -7,9 +7,9 @@ export const API = {
 };
 
 export const MOCK_ALARMS: AlarmItem[] = [
-  { districtName: '서울', moveName: '중부권역', itemCode: 'PM10', issueGbn: '주의보', issueVal: '98', issueDate: '2026-06-15', issueTime: '09:00', clearDate: null, clearTime: null },
-  { districtName: '경기', moveName: '북부권역', itemCode: 'PM10', issueGbn: '주의보', issueVal: '112', issueDate: '2026-06-15', issueTime: '08:00', clearDate: null, clearTime: null },
-  { districtName: '인천', moveName: '서부권역', itemCode: 'PM25', issueGbn: '경보', issueVal: '76', issueDate: '2026-06-14', issueTime: '22:00', clearDate: '2026-06-15', clearTime: '11:00' },
+  { sn: '1', districtName: '서울', moveName: '중부권역', itemCode: 'PM10', issueGbn: '주의보', issueVal: '98',  issueDate: '2026-06-15', issueTime: '09:00', clearDate: null,         clearTime: null,    clearVal: null, dataDate: '2026-06-15' },
+  { sn: '2', districtName: '경기', moveName: '북부권역', itemCode: 'PM10', issueGbn: '주의보', issueVal: '112', issueDate: '2026-06-15', issueTime: '08:00', clearDate: null,         clearTime: null,    clearVal: null, dataDate: '2026-06-15' },
+  { sn: '3', districtName: '인천', moveName: '서부권역', itemCode: 'PM25', issueGbn: '경보',   issueVal: '76',  issueDate: '2026-06-14', issueTime: '22:00', clearDate: '2026-06-15', clearTime: '11:00', clearVal: '32', dataDate: '2026-06-14' },
 ];
 
 export const MOCK_DUST: Record<string, { pm10: number; pm25: number; level: 'good' | 'normal' | 'bad' | 'very_bad' }> = {
